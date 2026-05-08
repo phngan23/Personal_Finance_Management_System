@@ -1,0 +1,54 @@
+# Virtual environment
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+
+# Database backup files
+*.sql.bak
+backup_*.sql
+
+# OS
+.DS_Store
+Thumbs.db
+
+# LATEX - Temporary/Auxiliary Files (Ignore everything except .tex and .pdf)
+*.aux
+*.fdb_latexmk
+*.fls
+*.log
+*.nav
+*.out
+*.snm
+*.synctex.gz
+*.toc
+*.vrb
+*.bbl
+*.blg
+*.thm
+*.lof
+*.lot
+*.pdfpc
+
+# DATA & SENSITIVE INFO
+security.csv
+.env
+config.ini
+
+# PYTHON BUILD & PACKAGING
+build/
+dist/
+*.spec
+*.egg-info/
+
+# JUPYTER
+.ipynb_checkpoints/
+
+# WINDOWS SPECIFIC
+[Dd]esktop.ini
