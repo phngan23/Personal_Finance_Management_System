@@ -73,6 +73,6 @@ python app/main.py
 ## Video Demo 
 
 ## 🤝 Acknowledgments
-- Developer: Nguyen Phuong Ngan (Class DSEB 66B -- NEU)
+- Developer: Nguyen Phuong Ngan (Class DSEB 66B - NEU)
 - Instructor: PhD. Tran Hung 
 
