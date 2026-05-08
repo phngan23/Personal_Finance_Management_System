@@ -35,6 +35,7 @@ Thumbs.db
 *.lof
 *.lot
 *.pdfpc
+*.tex
 
 # DATA & SENSITIVE INFO
 security.csv
