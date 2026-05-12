@@ -14,6 +14,8 @@ CREATE TABLE Users (
     UserID      INT             AUTO_INCREMENT PRIMARY KEY,
     UserName    VARCHAR(100)    NOT NULL,
     Email       VARCHAR(150)    NOT NULL UNIQUE,
+    -- Stored as a SHA-256 hash for security compliance
+    PasswordHash VARCHAR(255)   NOT NULL DEFAULT '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92',
     PhoneNumber VARCHAR(15),
     CreatedAt   DATETIME        NOT NULL DEFAULT CURRENT_TIMESTAMP,
 

@@ -54,6 +54,12 @@ def execute_query(query, params=None, fetch=False, many=False):
         if conn:
             conn.close()
 
+import hashlib
+
+def hash_password(password):
+    """Băm mật khẩu bằng thuật toán SHA-256"""
+    return hashlib.sha256(password.encode()).hexdigest()
+
 
 # ============================================================
 # USER FUNCTIONS
@@ -75,33 +81,56 @@ def get_user_by_id(user_id):
     )
 
 
-def create_user(username, email, phone):
+def create_user(username, email, password, phone):
     """
     Insert a new user. Returns the new UserID or None on failure.
-
-    Note: We use lastrowid, not MAX(UserID), because in concurrent
-    environments MAX() could return another user's ID.
     """
-    conn = get_connection()
-    if not conn:
-        return None
-    try:
-        with conn.cursor() as cursor:
-            query = "INSERT INTO Users (UserName, Email, PhoneNumber) VALUES (%s, %s, %s)"
-            cursor.execute(query, (username, email, phone))
-            conn.commit()
-            return cursor.lastrowid #
-    except Error as e:
-        conn.rollback()
-        print(f"[CREATE USER ERROR] {e}")
-        return None
-    finally:
-        conn.close()
+    pwd_hash = hash_password(password)
+    query = "INSERT INTO Users (UserName, Email, PasswordHash, PhoneNumber) VALUES (%s, %s, %s, %s)"
+    return execute_query(query, (username, email, pwd_hash, phone))
 
-def update_user_profile(user_id, name, email, phone):
+def update_user_profile(user_id, name, email, phone, password=None):
     """Cập nhật thông tin hồ sơ người dùng."""
-    query = "UPDATE Users SET UserName=%s, Email=%s, PhoneNumber=%s WHERE UserID=%s"
-    return execute_query(query, (name, email, phone, user_id))
+    if password:
+        # Nếu đổi cả mật khẩu
+        pwd_hash = hash_password(password)
+        query = "UPDATE Users SET UserName=%s, Email=%s, PhoneNumber=%s, PasswordHash=%s WHERE UserID=%s"
+        return execute_query(query, (name, email, phone, pwd_hash, user_id))
+    else:
+        # Chỉ đổi thông tin cơ bản
+        query = "UPDATE Users SET UserName=%s, Email=%s, PhoneNumber=%s WHERE UserID=%s"
+        return execute_query(query, (name, email, phone, user_id))
+
+def verify_user(user_id, input_password):
+    """Compare a plain-text input against the stored SHA-256 hash."""
+    query = "SELECT PasswordHash FROM Users WHERE UserID = %s"
+    result = execute_query(query, (user_id,), fetch=True)
+    
+    if result and len(result) > 0:
+        stored_hash = result.get('PasswordHash')
+        return stored_hash == hash_password(input_password)
+    return False
+
+def change_password(user_id, old_password, new_password):
+    """
+    Three-step validation:
+    1. Verify old password is correct.
+    2. Ensure new password differs from old.
+    3. Hash and persist the new password.
+    """
+    if not verify_user(user_id, old_password):
+        return False, "Old password is incorrect!"
+    
+    if old_password == new_password:
+        return False, "New password must be different from the old one!"
+    
+    pwd_hash = hash_password(new_password)
+    query = "UPDATE Users SET PasswordHash=%s WHERE UserID=%s"
+    success = execute_query(query, (pwd_hash, user_id))
+    
+    if success:
+        return True, "Password changed successfully!"
+    return False, "Database error occurred."
 
 
 # ============================================================

@@ -44,46 +44,64 @@ class UserProfilePopup(ctk.CTkToplevel):
         super().__init__()
         self.parent_app = parent_app
         self.user_id = user_id  
-        self.initial_data = current_data # Lưu lại để đối chiếu khi bấm Save
+        self.initial_data = current_data
         
         self.title("User Profile Management")
         self.geometry("450x600")
         self.attributes("-topmost", True)
-        self.grab_set() # Ngăn người dùng bấm ra ngoài khi đang edit
+        self.grab_set()
 
         # Header
         title_text = "👤 Edit User Profile" if user_id else "👤 New User Registration"
         ctk.CTkLabel(self, text=title_text, font=("Segoe UI", 22, "bold"), 
                      text_color=COLOR_NEUTRAL).pack(pady=25)
 
-        # Cấu trúc các ô nhập liệu (Pre-filled)
+        # Pre-filled
         self.name_entry  = self._add_input("Full Name:", "Ex: Nguyen Van A")
         self.email_entry = self._add_input("Email:", "a@example.com")
         self.phone_entry = self._add_input("Phone Number:", "090xxxxxxx")
         
-        if not user_id:
-            # Chỉ hiện Bank Account khi tạo mới
+        # LOGIC RIÊNG CHO EDIT VÀ CREATE
+        if self.user_id:
+            # CHẾ ĐỘ EDIT: Nút đổi mật khẩu và ô xác nhận mật khẩu hiện tại
+            ctk.CTkButton(self, text="Change Password Settings", fg_color="#e67e22",
+                          command=self._open_change_password).pack(pady=10)
+            
+            ctk.CTkFrame(self, height=2, fg_color="gray80").pack(fill="x", padx=40, pady=10)
+            self.verify_entry = self._add_input("Confirm Password to Save Changes:", "")
+            self.verify_entry.configure(show="*")
+        else:
+            # CHẾ ĐỘ TẠO MỚI: Ô nhập mật khẩu mới và Bank Account
+            self.password_entry = self._add_input("Set Password:", "Enter secure password")
+            self.password_entry.configure(show="*")
+            
             ctk.CTkFrame(self, height=2, fg_color="gray80").pack(fill="x", padx=40, pady=10)
             self.bank_entry = self._add_input("Initial Bank Account:", "Ex: Techcombank")
         
         # ĐIỀN THÔNG TIN CŨ (Dành cho chế độ Edit)
+        print(f"DEBUG: Dữ liệu user hiện tại: {current_data}")
         if current_data:
             self.name_entry.insert(0, current_data.get('UserName', ''))
             self.email_entry.insert(0, current_data.get('Email', ''))
-            phone_val = current_data.get('PhoneNumber', '')
+            phone_val = current_data.get('PhoneNumber') or current_data.get('phonenumber')
+    
             self.phone_entry.delete(0, 'end') # Xóa trắng trước khi chèn
-            self.phone_entry.insert(0, str(phone_val))
+            
+            if phone_val is not None:
+                self.phone_entry.insert(0, str(phone_val))
+            else:
+                self.phone_entry.insert(0, "")
 
         # Button Frame (Cancel & Save)
         btn_frame = ctk.CTkFrame(self, fg_color="transparent")
         btn_frame.pack(pady=40, padx=40, fill="x")
 
-        # Nút CANCEL
+        # CANCEL
         ctk.CTkButton(btn_frame, text="Cancel", fg_color="gray", hover_color="#7f8c8d",
                       width=140, height=45, font=("Segoe UI", 13, "bold"),
                       command=self.destroy).pack(side="left", padx=(0, 10), expand=True, fill="x")
 
-        # Nút SAVE (Update/Create)
+        # SAVE (Update/Create)
         btn_text = "Save Changes" if user_id else "Create Profile"
         self.submit_btn = ctk.CTkButton(btn_frame, text=btn_text, command=self._handle_submit,
                                         font=("Segoe UI", 13, "bold"),
@@ -96,6 +114,9 @@ class UserProfilePopup(ctk.CTkToplevel):
         entry = ctk.CTkEntry(self, placeholder_text=placeholder, width=350, height=38)
         entry.pack(pady=(2, 12), padx=40)
         return entry
+    
+    def _open_change_password(self):
+        ChangePasswordPopup(self, self.user_id, self.name_entry.get())
 
     def _handle_submit(self):
         name = self.name_entry.get().strip()
@@ -108,39 +129,41 @@ class UserProfilePopup(ctk.CTkToplevel):
             return
 
         try:
-            # 2. LOGIC CHO CHẾ ĐỘ EDIT
             if self.user_id:
-                # Lấy lại data cũ để so sánh
-                old_name  = self.initial_data.get('UserName', '')
-                old_email = self.initial_data.get('Email', '')
-                old_phone = self.initial_data.get('PhoneNumber', '')
+                # XÁC THỰC MẬT KHẨU TRƯỚC KHI CHO EDIT
+                current_pwd = self.verify_entry.get()
+                if not models.verify_user(self.user_id, current_pwd):
+                    messagebox.showerror("Security Error", "Incorrect password! Identity not verified.")
+                    return
                 
-                # Kiểm tra xem CÓ THAY ĐỔI gì không
-                if name == old_name and email == old_email and phone == str(old_phone):
-                    messagebox.showwarning("No Changes", "You haven't changed any profile information.")
+                # Kiểm tra xem có thay đổi gì không (để tránh query thừa)
+                if (name == self.initial_data.get('UserName') and 
+                    email == self.initial_data.get('Email') and 
+                    phone == str(self.initial_data.get('PhoneNumber'))):
+                    messagebox.showinfo("No Changes", "No information was changed.")
                     return
 
-                # Thực hiện Update
                 models.update_user_profile(self.user_id, name, email, phone)
                 messagebox.showinfo("Success", "Profile updated successfully!")
             
-            # 3. LOGIC CHO CHẾ ĐỘ TẠO MỚI (Giữ nguyên như cũ)
             else:
+                # LOGIC TẠO MỚI
+                password = self.password_entry.get().strip()
                 bank = self.bank_entry.get().strip()
-                if not bank:
-                    messagebox.showwarning("Warning", "Initial Bank Account is required!")
+                if not password or not bank:
+                    messagebox.showwarning("Error", "Password and Bank Account are required!")
                     return
                     
-                new_uid = models.create_user(name, email, phone)
+                new_uid = models.create_user(name, email, password, phone)
                 if new_uid:
                     models.create_account(new_uid, bank, 0)
-                    messagebox.showinfo("Success", f"User {name} created with initial account!")
+                    messagebox.showinfo("Success", f"User {name} created!")
 
             self.parent_app.refresh_user_dropdown() 
             self.destroy()
         
         except Exception as e:
-            messagebox.showerror("Database Error", f"Action failed: {str(e)}")
+            messagebox.showerror("Error", f"Action failed: {str(e)}")
 
 class AddCategoryPopup(ctk.CTkToplevel):
     def __init__(self, parent_app):
@@ -316,6 +339,80 @@ class EditTransactionPopup(ctk.CTkToplevel):
         except Exception as e:
             messagebox.showerror("Error", f"Failed to update: {e}")
 
+class PasswordPopup(ctk.CTkToplevel):
+    def __init__(self, parent, user_name, on_submit):
+        super().__init__(parent)
+        self.title("Authentication")
+        self.geometry("350x200")
+        self.on_submit = on_submit
+        self.attributes("-topmost", True)
+        self.grab_set()
+
+        ctk.CTkLabel(self, text=f"Password for {user_name}:", font=("Segoe UI", 13, "bold")).pack(pady=20)
+        self.pwd_entry = ctk.CTkEntry(self, show="*", width=250, height=35)
+        self.pwd_entry.pack(pady=5)
+        self.pwd_entry.focus()
+        
+        self.pwd_entry.bind("<Return>", lambda e: self._submit())
+        ctk.CTkButton(self, text="Login", command=self._submit, fg_color="#3498db", width=120).pack(pady=20)
+
+    def _submit(self):
+        pwd = self.pwd_entry.get()
+        self.destroy()
+        self.on_submit(pwd)
+
+class ChangePasswordPopup(ctk.CTkToplevel):
+    def __init__(self, parent, user_id, user_name):
+        super().__init__(parent)
+        self.title(f"Change Password - {user_name}")
+        self.geometry("400x400")
+        self.user_id = user_id
+        
+        self.attributes("-topmost", True)
+        self.grab_set()
+
+        ctk.CTkLabel(self, text="CHANGE PASSWORD", font=FONT_HEADING).pack(pady=20)
+
+        # Các ô nhập liệu
+        self.old_pwd = self._add_input("Old Password:")
+        self.new_pwd = self._add_input("New Password:")
+        self.confirm_pwd = self._add_input("Confirm New Password:")
+        
+        # --- NÚT BẤM PHẢI NẰM Ở ĐÂY ---
+        ctk.CTkButton(self, text="Update Password", 
+                      command=self._handle_change,
+                      fg_color="#e67e22", hover_color="#d35400",
+                      height=40, font=("Segoe UI", 13, "bold")).pack(pady=25)
+
+    def _add_input(self, label_text):
+        frame = ctk.CTkFrame(self, fg_color="transparent")
+        frame.pack(fill="x", padx=40, pady=5)
+        ctk.CTkLabel(frame, text=label_text, width=150, anchor="w", font=FONT_BODY).pack(side="left")
+        entry = ctk.CTkEntry(frame, show="*", width=180)
+        entry.pack(side="right")
+        return entry
+
+    def _handle_change(self):
+        old = self.old_pwd.get().strip()
+        new = self.new_pwd.get().strip()
+        conf = self.confirm_pwd.get().strip()
+
+        if not old or not new or not conf:
+            messagebox.showwarning("Error", "All fields are required!")
+            return
+        
+        if new != conf:
+            messagebox.showerror("Error", "Confirmation password does not match!")
+            return
+
+        # Gọi logic xử lý từ models.py
+        success, msg = models.change_password(self.user_id, old, new)
+        if success:
+            messagebox.showinfo("Success", msg)
+            self.destroy()
+        else:
+            messagebox.showerror("Error", msg)
+
 # ============================================================
 # MAIN APPLICATION CLASS
 # ============================================================
@@ -330,44 +427,64 @@ class FinanceApp(ctk.CTk):
         self.minsize(1100, 700)
 
         # --- App state ---
-        self.current_user_id  = tk.IntVar(value=1)       # Selected user
-        self.current_month    = tk.StringVar(
-            value=datetime.now().strftime('%Y-%m'))        # 'YYYY-MM'
+        self._user_map = {} # Khởi tạo rỗng để tránh lỗi AttributeError
+        self.current_user_id  = tk.IntVar(value=0)       # Mặc định là 0 (chưa chọn)
+        self.current_month    = tk.StringVar(value=datetime.now().strftime('%Y-%m'))
 
         # --- Build layout ---
         self._build_layout()
         self._build_sidebar()
-        self._build_screens()
+        
+        # --- Fix Dropdown & User Map ---
+        self.refresh_user_dropdown() # Gọi để nạp dữ liệu vào self._user_map
+        self.user_dropdown.set("Select User") # Reset lại chữ hiển thị
 
-        # --- Load initial screen ---
-        self.show_screen("dashboard")
-        self.refresh_user_dropdown()
+        # --- Trang Landing Đẹp ---
+        self._show_landing_page()
 
-    # ----------------------------------------------------------
-    # LAYOUT STRUCTURE
-    # ----------------------------------------------------------
+    def _show_landing_page(self):
+        """Tạo trang chào mừng chuyên nghiệp trong main_area"""
+        self.welcome_frame = ctk.CTkFrame(self.main_area, fg_color="transparent")
+        self.welcome_frame.grid(row=0, column=0, sticky="nsew")
+        
+        # Căn giữa nội dung trong welcome_frame
+        self.welcome_frame.grid_columnconfigure(0, weight=1)
+        self.welcome_frame.grid_rowconfigure((0, 1, 2), weight=1)
+
+        center_content = ctk.CTkFrame(self.welcome_frame, fg_color="transparent")
+        center_content.grid(row=1, column=0)
+
+        # Icon và Chữ chào mừng
+        ctk.CTkLabel(center_content, text="🏦", font=("Segoe UI", 80)).pack()
+        ctk.CTkLabel(center_content, text="Welcome to FinTrack", 
+                     font=("Segoe UI", 36, "bold"), text_color=COLOR_NEUTRAL).pack(pady=10)
+        
+        ctk.CTkLabel(center_content, 
+                     text="Your secure personal finance companion.\nPlease select a user profile to access your data.", 
+                     font=("Segoe UI", 16), text_color="gray50").pack(pady=5)
+        
+        # Mũi tên chỉ sang Sidebar
+        ctk.CTkLabel(center_content, text="← Select User here", 
+                     font=("Segoe UI", 13, "italic"), text_color=COLOR_INCOME).pack(pady=20)
 
     def _build_layout(self):
-        """Create the 2-column root grid: sidebar | main content."""
+        """Giữ nguyên cấu trúc Layout của Ngân"""
         self.grid_columnconfigure(1, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # Sidebar (fixed width)
         self.sidebar = ctk.CTkFrame(self, width=240, corner_radius=0, 
                                     fg_color=("#f8f9fa", "#1a1a1a"),
                                     border_width=1, border_color="gray85")
         self.sidebar.grid(row=0, column=0, sticky="nsew")
         self.sidebar.grid_propagate(False)
 
-        # Main content area
         self.main_area = ctk.CTkFrame(self, corner_radius=0, fg_color="transparent")
         self.main_area.grid(row=0, column=1, sticky="nsew", padx=20, pady=15)
         self.main_area.grid_columnconfigure(0, weight=1)
         self.main_area.grid_rowconfigure(0, weight=1)
 
     def _build_sidebar(self):
-        """Build navigation sidebar with user selector and nav buttons."""
-        # App logo / title
+        """GIỮ NGUYÊN 100% THIẾT KẾ SIDEBAR CỦA NGÂN"""
         logo = ctk.CTkLabel(self.sidebar, text="💰 FinTrack",
                             font=("Segoe UI", 26, "bold"), text_color=COLOR_NEUTRAL)
         logo.pack(pady=(30, 5), padx=10)
@@ -375,7 +492,6 @@ class FinanceApp(ctk.CTk):
         ctk.CTkLabel(self.sidebar, text="Personal Finance System", font=FONT_SMALL,
                      text_color="gray50").pack(pady=(0, 25))
 
-        # --- User Selector ---
         ctk.CTkLabel(self.sidebar, text="Active User:", font=("Segoe UI", 12, "bold")).pack(padx=(25, 10), anchor="w")
         self.user_dropdown = ctk.CTkOptionMenu(
             self.sidebar, width=200, height=35,
@@ -396,7 +512,6 @@ class FinanceApp(ctk.CTk):
                       fg_color="transparent", border_color=COLOR_NEUTRAL, text_color=COLOR_NEUTRAL,
                       command=self._handle_edit_profile).pack(pady=5)
 
-        # --- Month Selector ---
         ctk.CTkLabel(self.sidebar, text="Month:", font=("Segoe UI", 12, "bold")).pack(padx=(25, 10), anchor="w")
         self.month_entry = ctk.CTkEntry(self.sidebar, width=200, height=35,
                                         textvariable=self.current_month, justify="center", font=("Consolas", 14))
@@ -410,7 +525,6 @@ class FinanceApp(ctk.CTk):
 
         ctk.CTkFrame(self.sidebar, height=1, fg_color="gray80").pack(fill="x", padx=20, pady=10)
 
-        # --- Navigation buttons ---
         nav_buttons = [
             ("🏠  Dashboard",     "dashboard"),
             ("💳  Transactions",  "transactions"),
@@ -426,22 +540,11 @@ class FinanceApp(ctk.CTk):
             btn.pack(padx=10, pady=4)
             self._nav_buttons[screen] = btn
 
-        # Version info at bottom
         ctk.CTkLabel(self.sidebar, text="v1.0 - 2026",
                      font=FONT_SMALL, text_color="gray").pack(side="bottom", pady=15)
 
-    def _handle_edit_profile(self):
-        """Mở Popup Edit Profile với dữ liệu hiện tại"""
-        uid = self.get_user_id()
-        users = models.get_all_users()
-        current_user = next((u for u in users if u['UserID'] == uid), None)
-        
-        if current_user:
-            # Gọi Popup thông minh ở chế độ Edit
-            UserProfilePopup(self, user_id=uid, current_data=current_user)
-
     def _build_screens(self):
-        """Instantiate all screen frames."""
+        """Chỉ gọi hàm này sau khi đăng nhập thành công"""
         self.screens = {}
         self.screens["dashboard"]    = DashboardScreen(self.main_area, self)
         self.screens["transactions"] = TransactionsScreen(self.main_area, self)
@@ -451,54 +554,79 @@ class FinanceApp(ctk.CTk):
         for screen in self.screens.values():
             screen.grid(row=0, column=0, sticky="nsew")
 
-    # ----------------------------------------------------------
-    # NAVIGATION & STATE
-    # ----------------------------------------------------------
+    def _on_user_change(self, selection):
+        # Lấy ID từ map (Đã nạp dữ liệu ở refresh_user_dropdown)
+        new_user_id = self._user_map[selection]
+        old_id = self.current_user_id.get()
+        
+        def handle_password(input_pwd):
+            if input_pwd:
+                if models.verify_user(new_user_id, input_pwd):
+                    # 1. Đăng nhập thành công -> Xóa trang Landing
+                    if hasattr(self, 'welcome_frame'):
+                        self.welcome_frame.destroy()
+
+                    self.current_user_id.set(new_user_id)
+                    
+                    # 2. Xóa và xây lại các màn hình cho User mới
+                    if hasattr(self, 'screens'):
+                        for s_name in list(self.screens.keys()):
+                            self.screens[s_name].destroy()
+                        self.screens.clear()
+                    
+                    self._build_screens()
+                    
+                    # 3. Hiển thị Dashboard
+                    self.show_screen("dashboard")
+                    messagebox.showinfo("Success", f"Logged in as {selection}")
+                else:
+                    messagebox.showerror("Error", "Incorrect password!")
+                    self._reset_user_dropdown(old_id)
+            else:
+                self._reset_user_dropdown(old_id)
+
+        PasswordPopup(self, selection, handle_password)
+
+    def refresh_user_dropdown(self):
+        """Cập nhật dữ liệu cho Dropdown"""
+        users = models.get_all_users()
+        if not users: return
+        self._user_map = {u['UserName']: u['UserID'] for u in users}
+        names = list(self._user_map.keys())
+        self.user_dropdown.configure(values=names)
 
     def show_screen(self, name):
-        """Bring a screen to front and refresh its data."""
+        """Kiểm tra xem đã đăng nhập chưa trước khi hiện màn hình"""
+        if not hasattr(self, 'screens'):
+            messagebox.showwarning("Locked", "Please select a user and login first!")
+            return
+        
         self.active_screen_name = name
         self.screens[name].tkraise()
         self.screens[name].refresh()
 
-        # Highlight active nav button
         for btn_name, btn in self._nav_buttons.items():
             if btn_name == name:
                 btn.configure(fg_color=("#3498db", "#1f538d"), text_color="white")
             else:
                 btn.configure(fg_color="transparent", text_color=("black", "white"))
 
+    # Các hàm phụ giữ nguyên
+    def get_user_id(self): return self.current_user_id.get()
+    def get_month(self): return self.current_month.get().strip()
+    def _handle_edit_profile(self):
+        uid = self.get_user_id()
+        if uid:
+            current_user = models.get_user_by_id(uid)
+            if current_user: UserProfilePopup(self, user_id=uid, current_data=current_user)
+        else:
+            messagebox.showwarning("Warning", "Please select a user first.")
     def _refresh_current_screen(self):
-        """Called when month changes — refresh whichever screen is visible."""
-        if not hasattr(self, 'active_screen_name'):
-            self.active_screen_name = "dashboard"
-            
-        print(f"\n>>> [ACTION] Button 'Apply Month' clicked. Refreshing: {self.active_screen_name}")
-        
-        # Gọi lệnh làm mới cho đúng màn hình đang hiện ra
-        self.screens[self.active_screen_name].refresh()
-
-    def get_user_id(self):
-        return self.current_user_id.get()
-
-    def get_month(self):
-        return self.current_month.get().strip()
-
-    def refresh_user_dropdown(self):
-        """Populate the user dropdown from DB."""
-        users = models.get_all_users()
-        if not users:
-            return
-        self._user_map = {u['UserName']: u['UserID'] for u in users}
-        names = list(self._user_map.keys())
-        self.user_dropdown.configure(values=names)
-        current_name = next((name for name, id in self._user_map.items() if id == self.get_user_id()), names[0])
-        self.user_dropdown.set(current_name)
-        self.current_user_id.set(self._user_map[current_name])
-
-    def _on_user_change(self, selection):
-        self.current_user_id.set(self._user_map[selection])
-        self.show_screen("dashboard")
+        if hasattr(self, 'active_screen_name') and hasattr(self, 'screens'):
+            self.screens[self.active_screen_name].refresh()
+    def _reset_user_dropdown(self, old_id):
+        old_name = next((name for name, id in self._user_map.items() if id == old_id), "Select User")
+        self.user_dropdown.set(old_name)
 
 
 # ============================================================
