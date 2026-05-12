@@ -70,7 +70,8 @@ python app/main.py
 ```
 <img width="2879" height="1699" alt="dashboard" src="https://github.com/user-attachments/assets/584a4551-9d21-4bcc-b5e3-ac1f6d1ed43b" />
 
-## Video Demo 
+## Youtube Video Demo 
+https://youtu.be/JX6rUBDnL4M
 
 ## 🤝 Acknowledgments
 - Developer: Nguyen Phuong Ngan (Class DSEB 66B - NEU)
