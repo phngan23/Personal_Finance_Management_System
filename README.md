@@ -77,3 +77,5 @@ https://youtu.be/JX6rUBDnL4M
 - Developer: Nguyen Phuong Ngan (Class DSEB 66B - NEU)
 - Instructor: PhD. Tran Hung 
 
+## Project Repository
+https://github.com/phngan23/Personal_Finance_Management_System
